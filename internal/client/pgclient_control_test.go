@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cybertec-postgresql/pg_timetable/internal/testutils"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,12 +20,12 @@ func TestPauseResumeChain(t *testing.T) {
 
 	require.NoError(t, c.PauseChain(context.Background(), "ctrl-chain"))
 	var live bool
-	require.NoError(t, tc.Engine.ConfigDb.QueryRow(context.Background(),
+	require.NoError(t, tc.Pool.QueryRow(context.Background(),
 		`SELECT live FROM timetable.chain WHERE chain_name = 'ctrl-chain'`).Scan(&live))
 	assert.False(t, live, "chain should be paused (live=false)")
 
 	require.NoError(t, c.ResumeChain(context.Background(), "ctrl-chain"))
-	require.NoError(t, tc.Engine.ConfigDb.QueryRow(context.Background(),
+	require.NoError(t, tc.Pool.QueryRow(context.Background(),
 		`SELECT live FROM timetable.chain WHERE chain_name = 'ctrl-chain'`).Scan(&live))
 	assert.True(t, live, "chain should be resumed (live=true)")
 }
@@ -53,7 +53,7 @@ func TestStartChain_NotifyFires(t *testing.T) {
 	id := seedJob(t, tc, "start-chain", "* * * * *")
 
 	// Pause the chain to confirm start works regardless of live (P0-1 decision).
-	_, err := tc.Engine.ConfigDb.Exec(context.Background(),
+	_, err := tc.Pool.Exec(context.Background(),
 		`SELECT timetable.pause_job('start-chain')`)
 	require.NoError(t, err)
 

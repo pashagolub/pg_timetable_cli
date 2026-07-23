@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cybertec-postgresql/pg_timetable/internal/pgengine"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/pgengine"
 	"github.com/jackc/pgx/v5"
 	"gopkg.in/yaml.v3"
 )

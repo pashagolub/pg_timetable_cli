@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
-	"github.com/cybertec-postgresql/pg_timetable/internal/testutils"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

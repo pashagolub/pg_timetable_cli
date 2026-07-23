@@ -12,7 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/cmd"
+	"github.com/cybertec-postgresql/pg_timetable_cli/cmd"
 )
 
 func main() {

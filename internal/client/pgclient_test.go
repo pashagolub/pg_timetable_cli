@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
-	"github.com/cybertec-postgresql/pg_timetable/internal/testutils"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +51,7 @@ func TestCheckSchemaVersion_Absent(t *testing.T) {
 	defer cleanup()
 
 	// Drop the schema to simulate a database that never ran pg_timetable.
-	_, err := tc.Engine.ConfigDb.Exec(context.Background(), "DROP SCHEMA timetable CASCADE")
+	_, err := tc.Pool.Exec(context.Background(), "DROP SCHEMA timetable CASCADE")
 	require.NoError(t, err)
 
 	c := client.New(currentSchema)

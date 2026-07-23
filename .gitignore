@@ -1,0 +1,5 @@
+pgtt
+pgtt.exe
+coverage.out
+*.test
+.vscode/

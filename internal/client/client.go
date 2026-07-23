@@ -10,7 +10,7 @@ package client
 import (
 	"context"
 
-	"github.com/cybertec-postgresql/pg_timetable/internal/pgengine"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/pgengine"
 )
 
 // Chain is re-exported for command/rendering layers.

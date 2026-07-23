@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
 	"github.com/spf13/cobra"
 )
 

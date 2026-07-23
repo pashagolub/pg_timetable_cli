@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
 )
 
 // This file implements the rich, identity-first renderer for the unified

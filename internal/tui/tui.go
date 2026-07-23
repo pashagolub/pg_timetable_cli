@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

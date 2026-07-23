@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cybertec-postgresql/pg_timetable/internal/testutils"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func seedExecLog(t *testing.T, tc *testutils.PostgresTestContainer,
 	if finished {
 		finExpr = "clock_timestamp() + interval '2 seconds'"
 	}
-	_, err := tc.Engine.ConfigDb.Exec(ctx, fmt.Sprintf(`
+	_, err := tc.Pool.Exec(ctx, fmt.Sprintf(`
 INSERT INTO timetable.execution_log
     (chain_id, task_id, txid, last_run, finished, pid, returncode, ignore_error, kind, command, output, client_name, params)
 VALUES ($1, $2, $3, clock_timestamp(), %s, 1, $4, FALSE, 'SQL', 'SELECT 1', $5, 'test-worker', NULL)`, finExpr),
@@ -104,7 +104,7 @@ func TestShowRun(t *testing.T) {
 	id := seedJob(t, tc, "detail-chain", "* * * * *")
 	// Get the task_id of the task just created.
 	var taskID int
-	require.NoError(t, tc.Engine.ConfigDb.QueryRow(context.Background(),
+	require.NoError(t, tc.Pool.QueryRow(context.Background(),
 		`SELECT task_id FROM timetable.task WHERE chain_id = $1`, id).Scan(&taskID))
 
 	seedExecLog(t, tc, id, taskID, 3001, 0, "hello output", true)

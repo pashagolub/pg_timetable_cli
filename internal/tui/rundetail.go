@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"

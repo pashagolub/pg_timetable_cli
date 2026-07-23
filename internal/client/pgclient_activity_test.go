@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
-	"github.com/cybertec-postgresql/pg_timetable/internal/testutils"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +22,7 @@ func TestListActivity_MergesBothSources(t *testing.T) {
 	chainID := seedJob(t, tc, "activity-chain", "* * * * *")
 
 	// Insert a scheduler log row.
-	_, err := tc.Engine.ConfigDb.Exec(ctx,
+	_, err := tc.Pool.Exec(ctx,
 		`INSERT INTO timetable.log (pid, log_level, client_name, message)
 		 VALUES (1, 'INFO', 'act-worker', 'chain dispatched')`)
 	require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestListActivity_LogRowContextFromMessageData(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	_, err := tc.Engine.ConfigDb.Exec(ctx,
+	_, err := tc.Pool.Exec(ctx,
 		`INSERT INTO timetable.log (pid, log_level, client_name, message, message_data)
 		 VALUES (1, 'INFO', 'demo_worker', 'Starting task',
 		         '{"chain":{"ChainID":1,"ChainName":"notify_every_minute"},
@@ -195,7 +195,7 @@ func TestListActivity_LogRowWithoutContext(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	_, err := tc.Engine.ConfigDb.Exec(ctx,
+	_, err := tc.Pool.Exec(ctx,
 		`INSERT INTO timetable.log (pid, log_level, client_name, message)
 		 VALUES (1, 'INFO', 'ctx-worker', 'Retrieve scheduled chains to run')`)
 	require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestListActivity_FilterByChainMatchesLogRows(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	_, err := tc.Engine.ConfigDb.Exec(ctx,
+	_, err := tc.Pool.Exec(ctx,
 		`INSERT INTO timetable.log (pid, log_level, client_name, message, message_data)
 		 VALUES (1, 'INFO', 'filt-worker', 'chain 1 msg',
 		         '{"chain":{"ChainID":1,"ChainName":"one"}}'::jsonb),
@@ -246,7 +246,7 @@ func TestListActivity_NoticeSeverity(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	_, err := tc.Engine.ConfigDb.Exec(ctx,
+	_, err := tc.Pool.Exec(ctx,
 		`INSERT INTO timetable.log (pid, log_level, client_name, message, message_data)
 		 VALUES (1, 'INFO', 'demo_worker', 'Notice received',
 		         '{"notice":"Message by demo_worker from chain 2: \"Hey from client messages task\"",
@@ -272,7 +272,7 @@ func TestListActivity_SeverityFallsBackToLogLevel(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	_, err := tc.Engine.ConfigDb.Exec(ctx,
+	_, err := tc.Pool.Exec(ctx,
 		`INSERT INTO timetable.log (pid, log_level, client_name, message)
 		 VALUES (1, 'ERROR', 'sev-worker', 'something broke')`)
 	require.NoError(t, err)
@@ -301,7 +301,7 @@ func TestListActivityTree_GroupsRunsInSQL(t *testing.T) {
 	// Two runs of chain 1 (vxids 100 then 200) plus a chain-less scheduler row
 	// whose ts (10:01:00.050) falls between the two runs, inserted out of order
 	// to prove SQL does the grouping/ordering.
-	_, err := tc.Engine.ConfigDb.Exec(ctx, `
+	_, err := tc.Pool.Exec(ctx, `
 		INSERT INTO timetable.log (ts, pid, log_level, client_name, message, message_data) VALUES
 		-- run 1 (older)
 		('2026-06-23 10:00:00.100', 1, 'INFO', 'w', 'Starting chain',
@@ -357,7 +357,7 @@ func TestListActivityTree_SystemRowsAreStandalone(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	_, err := tc.Engine.ConfigDb.Exec(ctx, `
+	_, err := tc.Pool.Exec(ctx, `
 		INSERT INTO timetable.log (ts, pid, log_level, client_name, message, message_data) VALUES
 		('2026-06-23 12:00:00.300', 1, 'INFO', 'w', 'Notice received', '{}'),
 		('2026-06-23 12:00:00.200', 1, 'INFO', 'w', 'Retrieve interval chains to run', '{}'),
@@ -387,7 +387,7 @@ func TestListActivityTree_FilterByChain(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	_, err := tc.Engine.ConfigDb.Exec(ctx, `
+	_, err := tc.Pool.Exec(ctx, `
 		INSERT INTO timetable.log (pid, log_level, client_name, message, message_data) VALUES
 		(1, 'INFO', 'w', 'Starting chain', '{"chain":{"ChainID":1,"ChainName":"one"}}'),
 		(1, 'INFO', 'w', 'Starting chain', '{"chain":{"ChainID":2,"ChainName":"two"}}')

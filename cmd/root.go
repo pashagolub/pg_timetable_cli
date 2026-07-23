@@ -15,8 +15,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/tui"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/tui"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"

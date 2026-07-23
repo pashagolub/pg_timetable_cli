@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
-	"github.com/cybertec-postgresql/pg_timetable/internal/testutils"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +30,7 @@ func seedPerf(t *testing.T, tc *testutils.PostgresTestContainer) {
 	ctx := context.Background()
 
 	// Bulk-insert chains via a single CTE.
-	_, err := tc.Engine.ConfigDb.Exec(ctx, fmt.Sprintf(`
+	_, err := tc.Pool.Exec(ctx, fmt.Sprintf(`
 INSERT INTO timetable.chain (chain_name, run_at, live)
 SELECT 'perf-chain-' || g, '* * * * *', TRUE
 FROM generate_series(1, %d) g
@@ -38,7 +38,7 @@ ON CONFLICT DO NOTHING`, perfChainCount))
 	require.NoError(t, err)
 
 	// Bulk-insert execution_log rows: 4 finished runs per chain.
-	_, err = tc.Engine.ConfigDb.Exec(ctx, fmt.Sprintf(`
+	_, err = tc.Pool.Exec(ctx, fmt.Sprintf(`
 INSERT INTO timetable.execution_log
     (chain_id, task_id, txid, last_run, finished, pid, returncode, ignore_error, kind, command, client_name)
 SELECT
@@ -55,7 +55,7 @@ LIMIT %d`, perfExecLogRows))
 	require.NoError(t, err)
 
 	// Bulk-insert log rows.
-	_, err = tc.Engine.ConfigDb.Exec(ctx, fmt.Sprintf(`
+	_, err = tc.Pool.Exec(ctx, fmt.Sprintf(`
 INSERT INTO timetable.log (pid, log_level, client_name, message)
 SELECT 1, 'INFO', 'perf-worker', 'perf test message'
 FROM generate_series(1, %d)`, perfExecLogRows))

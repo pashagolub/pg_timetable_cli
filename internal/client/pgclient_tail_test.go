@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
-	"github.com/cybertec-postgresql/pg_timetable/internal/testutils"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +37,7 @@ func TestTailLogs_ReceivesNewEntries(t *testing.T) {
 	// Give the first tick a moment to fire, then insert rows.
 	time.Sleep(1200 * time.Millisecond)
 	for i := range 3 {
-		_, err := tc.Engine.ConfigDb.Exec(context.Background(),
+		_, err := tc.Pool.Exec(context.Background(),
 			`INSERT INTO timetable.log (pid, log_level, client_name, message)
 			 VALUES ($1, 'INFO', 'tail-test', $2)`, i+1, "tail-msg")
 		require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestTailLogs_FilterByClient(t *testing.T) {
 	defer cancel()
 
 	// Insert one row for target client, one for another.
-	_, err := tc.Engine.ConfigDb.Exec(context.Background(),
+	_, err := tc.Pool.Exec(context.Background(),
 		`INSERT INTO timetable.log (pid, log_level, client_name, message)
 		 VALUES (1, 'INFO', 'wanted', 'yes'), (2, 'INFO', 'other', 'no')`)
 	require.NoError(t, err)

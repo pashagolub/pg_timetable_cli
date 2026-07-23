@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/cybertec-postgresql/pg_timetable/cmd/pgtt/internal/client"
-	"github.com/cybertec-postgresql/pg_timetable/internal/testutils"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +15,7 @@ import (
 func seedJob(t *testing.T, tc *testutils.PostgresTestContainer, name, schedule string) int {
 	t.Helper()
 	var id int
-	err := tc.Engine.ConfigDb.QueryRow(context.Background(),
+	err := tc.Pool.QueryRow(context.Background(),
 		`SELECT timetable.add_job($1, $2, 'SELECT 1')`, name, schedule,
 	).Scan(&id)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestListLogs(t *testing.T) {
 
 	ctx := context.Background()
 	for range 3 {
-		_, err := tc.Engine.ConfigDb.Exec(ctx,
+		_, err := tc.Pool.Exec(ctx,
 			`INSERT INTO timetable.log (pid, log_level, client_name, message)
 			 VALUES (1, 'INFO', 'worker1', 'hello')`)
 		require.NoError(t, err)

@@ -309,6 +309,15 @@ pgtt secret refs
 pgtt secret refs my-chain
 ```
 
+`chain show` and the TUI chain view append the same information, flagging any
+reference that has no matching `timetable.secret` row for the chain's
+`client_name`:
+
+```
+Secrets: db_pass, smtp_main
+  ! smtp_main (task 8, parameter): no timetable.secret row for client "worker-1"
+```
+
 A reference on a chain with no `client_name` is always reported as
 unresolvable: any worker may pick that chain up, so no single secret row can be
 shown to be the one that will be used.

@@ -6,7 +6,7 @@ chains and tasks without crafting SQL manually over an SSH session.
 
 ## Installation
 
-Build from source (requires Go ≥ 1.25):
+Build from source (requires Go ≥ 1.26):
 
 ```bash
 go build -o pgtt .

@@ -100,6 +100,41 @@ type LogFilter struct {
 	Limit      int    // 0 means use a sane default
 }
 
+// SecretInfo is one row of timetable.secret, metadata only.
+//
+// pg_timetable's Secret Store has no plaintext read path: the
+// value is decrypted solely inside timetable.resolve_secret, by the scheduler,
+// using a key the database never stores. pgtt mirrors that boundary and never
+// selects or prints value_enc.
+type SecretInfo struct {
+	ClientName string `db:"client_name" json:"client_name"`
+	SecretName string `db:"secret_name" json:"secret_name"`
+	// ValueBytes is the encrypted payload's size, the only property of the
+	// value pgtt reports.
+	ValueBytes int    `db:"value_bytes" json:"value_bytes"`
+	CreatedAt  string `db:"created_at" json:"created_at"`
+	UpdatedAt  string `db:"updated_at" json:"updated_at"`
+	UpdatedBy  string `db:"updated_by" json:"updated_by"`
+}
+
+// SecretRef is one ${secret:name} reference found in a chain definition.
+type SecretRef struct {
+	ChainID   int    `db:"chain_id" json:"chain_id"`
+	ChainName string `db:"chain_name" json:"chain_name"`
+	// ClientName is the owning chain's client_name ("" means any worker).
+	ClientName string `db:"client_name" json:"client_name"`
+	TaskID     int64  `db:"task_id" json:"task_id"`
+	TaskName   string `db:"task_name" json:"task_name"`
+	// Location is "command", "connection" or "parameter".
+	Location   string `db:"location" json:"location"`
+	SecretName string `db:"secret_name" json:"secret_name"`
+	// Resolvable is true when a timetable.secret row exists for this chain's
+	// client_name and this secret name.
+	Resolvable bool `json:"resolvable"`
+	// Note explains why Resolvable is false; empty when it is true.
+	Note string `json:"note,omitempty"`
+}
+
 // Client is the full management surface used by pgtt commands and (later) the TUI.
 //
 // Phase 1 implements Connect/Close and CheckSchemaVersion. The remaining methods
@@ -171,6 +206,17 @@ type Client interface {
 	ListRuns(ctx context.Context, ref string, limit int) ([]RunSummary, error)
 	// ShowRun returns per-task detail rows for a single txid (P5-5).
 	ShowRun(ctx context.Context, txid int64) ([]RunTaskDetail, error)
+
+	// --- Secret Store ---
+
+	// ListSecrets returns timetable.secret metadata. It never reads the
+	// encrypted value: the Secret Store has no plaintext read path and pgtt
+	// does not add one.
+	ListSecrets(ctx context.Context) ([]SecretInfo, error)
+	// ListSecretRefs reports every ${secret:name} reference in the chain
+	// definitions and whether a matching secret row exists. chainRef selects
+	// one chain by id or name; "" scans all of them.
+	ListSecretRefs(ctx context.Context, chainRef string) ([]SecretRef, error)
 }
 
 // RunSummary is one chain execution (one txid) from timetable.execution_log (P5-4).

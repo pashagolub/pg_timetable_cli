@@ -77,6 +77,10 @@ pgtt chain run-detail 7842391
 pgtt session list
 pgtt active list
 
+# Secret Store: what is stored, and what references it
+pgtt secret list
+pgtt secret refs
+
 # Unified activity feed (execution results + scheduler messages)
 pgtt log list
 pgtt log list --chain 42 --client worker1 --limit 50
@@ -277,3 +281,34 @@ to create and initialise it.
 
 Schema `00820` (the Secret Store) is on pg_timetable master and not in any
 release yet, so `pgtt` currently requires a scheduler built from master.
+
+## Secret Store
+
+`timetable.secret` holds encrypted values that tasks reference as
+`${secret:name}` in a command, in a `database_connection` conninfo string, or
+inside a jsonb parameter. The scheduler decrypts them at execution time with a
+key supplied by `--secret-key` / `PGTT_SECRET_KEY`, which the database never
+stores.
+
+`pgtt` is read-only here: the store has no plaintext read path, so `pgtt` never
+reads, writes, decrypts or prints a value, and never handles the encryption key.
+Store a secret the way the pg_timetable documentation describes:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto; -- by the DBA; pg_timetable never installs it
+INSERT INTO timetable.secret (client_name, secret_name, value_enc)
+VALUES ('worker-1', 'smtp_main', pgp_sym_encrypt('your-password', 'the-key'));
+```
+
+```bash
+# What is stored: names and metadata, never values
+pgtt secret list
+
+# Where ${secret:name} references appear, and whether each one will resolve
+pgtt secret refs
+pgtt secret refs my-chain
+```
+
+A reference on a chain with no `client_name` is always reported as
+unresolvable: any worker may pick that chain up, so no single secret row can be
+shown to be the one that will be used.

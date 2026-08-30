@@ -86,6 +86,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newLogCmd())
 	root.AddCommand(newApplyCmd())
 	root.AddCommand(newExportCmd())
+	root.AddCommand(newSecretCmd())
 	return root
 }
 

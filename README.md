@@ -34,7 +34,10 @@ operate against an incompatible schema.
 
 Integration tests use [testcontainers](https://testcontainers.com/) and require
 Docker. The `timetable.*` schema is initialized in the test database by running
-the official `cybertecpostgresql/pg_timetable` image once with `--init`.
+the official `cybertecpostgresql/pg_timetable` image once with `--init`. That
+image is a release, so it stops one migration short of the schema version pgtt
+pins to; `internal/testutils` applies the remaining `00820.sql` (copied verbatim
+from pg_timetable) on top. Drop it once a release ships the Secret Store.
 
 ```bash
 make test

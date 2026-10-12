@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -44,8 +45,9 @@ ORDER BY client_name, secret_name`
 // definitions, one row per (task, location, secret name).
 //
 // chainRef selects a single chain by numeric id or name; "" scans all chains.
-// References are read from the three places the scheduler resolves them:
-// task.command, task.database_connection, and parameter.value.
+// References are read from the two places the scheduler resolves them:
+// task.database_connection and the string leaves of parameter.value.
+// task.command is never resolved, so placeholders there are ignored.
 //
 // Each reference is marked Resolvable when a timetable.secret row exists for
 // the owning chain's client_name. A chain with a NULL/empty client_name can be
@@ -64,8 +66,6 @@ SELECT
 FROM timetable.chain c
 JOIN timetable.task t ON t.chain_id = c.chain_id
 CROSS JOIN LATERAL (
-    SELECT 'command'    AS location, t.command             AS text
-    UNION ALL
     SELECT 'connection' AS location, t.database_connection AS text
     UNION ALL
     SELECT 'parameter'  AS location, p.value::text         AS text
@@ -123,7 +123,11 @@ ORDER BY c.chain_id, t.task_order, src.location`
 	var out []SecretRef
 	seen := map[string]bool{}
 	for _, r := range found {
-		for _, name := range extractSecretRefs(r.Text) {
+		text := r.Text
+		if r.Location == "parameter" {
+			text = jsonStringLeaves(text)
+		}
+		for _, name := range extractSecretRefs(text) {
 			key := strconv.Itoa(r.ChainID) + "\x00" + strconv.FormatInt(r.TaskID, 10) +
 				"\x00" + r.Location + "\x00" + name
 			if seen[key] {
@@ -151,6 +155,33 @@ ORDER BY c.chain_id, t.task_order, src.location`
 		}
 	}
 	return out, nil
+}
+
+// jsonStringLeaves joins the string values of a JSON document, skipping object
+// keys and non-string content the scheduler never resolves.
+func jsonStringLeaves(doc string) string {
+	var v any
+	if err := json.Unmarshal([]byte(doc), &v); err != nil {
+		return ""
+	}
+	var leaves []string
+	var walk func(any)
+	walk = func(n any) {
+		switch x := n.(type) {
+		case string:
+			leaves = append(leaves, x)
+		case []any:
+			for _, e := range x {
+				walk(e)
+			}
+		case map[string]any:
+			for _, e := range x {
+				walk(e)
+			}
+		}
+	}
+	walk(v)
+	return strings.Join(leaves, "\n")
 }
 
 // extractSecretRefs returns the unique ${secret:name} identifiers in s, in

@@ -92,15 +92,15 @@ func TestListSecretRefs(t *testing.T) {
 	seedSecretTask(t, tc, id,
 		"SELECT '${secret:in_command}'",
 		"host=db password=${secret:db_pass}",
-		`{"pw": "${secret:in_param}"}`)
+		`{"pw": "${secret:in_param}", "${secret:in_key}": "literal", "n": 1}`)
 
-	// Only one of the three referenced secrets is actually stored.
+	// Only one of the referenced secrets is actually stored.
 	tc.AddSecret(t, "worker-1", "db_pass", []byte("enc"))
 
 	c := newConnectedClient(t, tc)
 	refs, err := c.ListSecretRefs(ctx, "chain-secrets")
 	require.NoError(t, err)
-	require.Len(t, refs, 3)
+	require.Len(t, refs, 2) // command text is never resolved
 
 	byName := map[string]client.SecretRef{}
 	for _, r := range refs {
@@ -114,14 +114,12 @@ func TestListSecretRefs(t *testing.T) {
 	assert.True(t, byName["db_pass"].Resolvable)
 	assert.Empty(t, byName["db_pass"].Note)
 
-	require.Contains(t, byName, "in_command")
-	assert.Equal(t, "command", byName["in_command"].Location)
-	assert.False(t, byName["in_command"].Resolvable)
-	assert.Contains(t, byName["in_command"].Note, "worker-1")
+	assert.NotContains(t, byName, "in_command")
 
 	require.Contains(t, byName, "in_param")
 	assert.Equal(t, "parameter", byName["in_param"].Location)
 	assert.False(t, byName["in_param"].Resolvable)
+	assert.NotContains(t, byName, "in_key") // object keys are not resolved
 }
 
 // TestListSecretRefs_NoClientName verifies a chain any worker may pick up is
@@ -132,7 +130,7 @@ func TestListSecretRefs_NoClientName(t *testing.T) {
 	defer cleanup()
 
 	id := seedJob(t, tc, "chain-anyworker", "* * * * *")
-	seedSecretTask(t, tc, id, "SELECT '${secret:shared}'", "", "")
+	seedSecretTask(t, tc, id, "SELECT 1", "host=db password=${secret:shared}", "")
 	tc.AddSecret(t, "worker-1", "shared", []byte("enc"))
 
 	c := newConnectedClient(t, tc)
@@ -151,7 +149,7 @@ func TestListSecretRefs_AllChains(t *testing.T) {
 	defer cleanup()
 
 	withSecret := seedJob(t, tc, "chain-with", "* * * * *")
-	seedSecretTask(t, tc, withSecret, "SELECT '${secret:a}'", "", "")
+	seedSecretTask(t, tc, withSecret, "SELECT 1", "host=db password=${secret:a}", "")
 	seedJob(t, tc, "chain-without", "* * * * *")
 
 	c := newConnectedClient(t, tc)

@@ -40,8 +40,15 @@ func TestSecretRefNames(t *testing.T) {
 	refs := []SecretRef{
 		{SecretName: "smtp", Location: "parameter", TaskID: 1},
 		{SecretName: "db_pass", Location: "connection", TaskID: 1},
-		{SecretName: "smtp", Location: "command", TaskID: 2},
+		{SecretName: "smtp", Location: "connection", TaskID: 2},
 	}
 	assert.Equal(t, []string{"db_pass", "smtp"}, SecretRefNames(refs))
 	assert.Nil(t, SecretRefNames(nil))
+}
+
+func TestJSONStringLeaves(t *testing.T) {
+	doc := `{"${secret:key}": "a ${secret:v}", "n": [1, "${secret:arr}", {"x": "y"}], "b": true}`
+	got := extractSecretRefs(jsonStringLeaves(doc))
+	assert.ElementsMatch(t, []string{"v", "arr"}, got)
+	assert.Empty(t, jsonStringLeaves("not json"))
 }

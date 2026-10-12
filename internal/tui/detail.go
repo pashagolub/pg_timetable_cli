@@ -215,7 +215,7 @@ func (v *detailView) Body(width, height int) string {
 	b.WriteByte('\n')
 
 	// Split the remaining height between the two bordered panes.
-	remaining := height - 2 - headerLines(v.secretRefs) // header block + spacer
+	remaining := height - 1 - headerLines(v.secretRefs) // header block + spacer
 	if remaining < 6 {
 		remaining = 6
 	}

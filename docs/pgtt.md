@@ -285,8 +285,8 @@ release yet, so `pgtt` currently requires a scheduler built from master.
 ## Secret Store
 
 `timetable.secret` holds encrypted values that tasks reference as
-`${secret:name}` in a command, in a `database_connection` conninfo string, or
-inside a jsonb parameter. The scheduler decrypts them at execution time with a
+`${secret:name}` in a `database_connection` conninfo string or in a string
+value inside a jsonb parameter. `task.command` is never resolved. The scheduler decrypts them at execution time with a
 key supplied by `--secret-key` / `PGTT_SECRET_KEY`, which the database never
 stores.
 

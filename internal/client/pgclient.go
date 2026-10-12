@@ -21,7 +21,7 @@ var (
 // PgClient is the pgxpool-backed implementation of Client.
 type PgClient struct {
 	pool *pgxpool.Pool
-	// wantVersion is the schema version pgtt is compatible with, e.g. "00820".
+	// wantVersion is the schema version pgtt is compatible with, e.g. "00850".
 	wantVersion string
 }
 

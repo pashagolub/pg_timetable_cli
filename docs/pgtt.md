@@ -275,12 +275,12 @@ verbose: false
 ## Schema compatibility
 
 `pgtt` checks the `timetable.migration` table on every connection and refuses to
-operate against an incompatible schema version (printed as `required: 00820`).
+operate against an incompatible schema version (printed as `required: 00850`).
 If the schema is absent, run a pg_timetable instance against the database first
 to create and initialise it.
 
-Schema `00820` (the Secret Store) is on pg_timetable master and not in any
-release yet, so `pgtt` currently requires a scheduler built from master.
+Schema `00850` (it follows the Secret Store in `00820`) is on pg_timetable
+master and not in any release yet, so `pgtt` currently requires a scheduler built from master.
 
 ## Secret Store
 

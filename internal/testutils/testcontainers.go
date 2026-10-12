@@ -28,16 +28,28 @@ import (
 // SchedulerImage is the pg_timetable image used to initialize the schema.
 var SchedulerImage = "cybertecpostgresql/pg_timetable:latest"
 
-// migration00820 is pg_timetable's migrations/00820.sql, copied verbatim.
-//
-// pgtt pins dbSchema to 00820 (the Secret Store), which is on pg_timetable
-// master but not in any release, so the :latest image initializes the database
-// to 00797. Applying the real migration here — rather than a hand-written
-// subset — keeps the test database identical to what a master scheduler
-// produces. Drop this file once a release ships 00820 and the image catches up.
-//
+// pendingMigration is a pg_timetable migration the released scheduler image
+// may not ship yet. The SQL files are copied verbatim from pg_timetable's
+// migrations directory, so the test database matches what a master scheduler
+// produces. Delete an entry, and its file, once a release ships it.
+type pendingMigration struct {
+	version string // leading token of timetable.migration.version, e.g. "00850"
+	name    string // full migration name recorded in timetable.migration
+	sql     string
+}
+
 //go:embed 00820.sql
 var migration00820 string
+
+//go:embed 00850.sql
+var migration00850 string
+
+// pendingMigrations lists, in order, the migrations up to the schema version
+// pgtt pins to (dbSchema in cmd/root.go).
+var pendingMigrations = []pendingMigration{
+	{"00820", "00820 Add timetable.secret store", migration00820},
+	{"00850", "00850 Fix error hint in timetable.cron_split_to_arrays", migration00850},
+}
 
 // PostgresTestContainer wraps a postgres container whose database has the
 // timetable.* schema installed.
@@ -148,25 +160,29 @@ func initSchema(ctx context.Context, pg *postgres.PostgresContainer) error {
 
 // applyPendingMigrations brings the database up to the schema version pgtt is
 // pinned to, for migrations the released scheduler image does not yet ship.
-// It is a no-op once the image itself initializes to that version.
+// Each migration is skipped when the image already applied it.
 func applyPendingMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	var have bool
-	if err := pool.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM timetable.migration WHERE version LIKE '00820%')`,
-	).Scan(&have); err != nil {
-		return fmt.Errorf("reading timetable.migration: %w", err)
-	}
-	if have {
-		return nil
-	}
-	if _, err := pool.Exec(ctx, migration00820); err != nil {
-		return fmt.Errorf("applying migration 00820: %w", err)
-	}
-	if _, err := pool.Exec(ctx,
-		`INSERT INTO timetable.migration (id, version)
-		 VALUES ((SELECT MAX(id) + 1 FROM timetable.migration), '00820 Add timetable.secret store')`,
-	); err != nil {
-		return fmt.Errorf("recording migration 00820: %w", err)
+	for _, m := range pendingMigrations {
+		var have bool
+		if err := pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM timetable.migration WHERE version LIKE $1)`,
+			m.version+"%",
+		).Scan(&have); err != nil {
+			return fmt.Errorf("reading timetable.migration: %w", err)
+		}
+		if have {
+			continue
+		}
+		if _, err := pool.Exec(ctx, m.sql); err != nil {
+			return fmt.Errorf("applying migration %s: %w", m.version, err)
+		}
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO timetable.migration (id, version)
+			 VALUES ((SELECT MAX(id) + 1 FROM timetable.migration), $1)`,
+			m.name,
+		); err != nil {
+			return fmt.Errorf("recording migration %s: %w", m.version, err)
+		}
 	}
 	return nil
 }

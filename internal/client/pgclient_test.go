@@ -14,7 +14,7 @@ import (
 
 // currentSchema is the schema version the test database is seeded with,
 // matching the dbSchema constant in cmd/root.go.
-const currentSchema = "00820"
+const currentSchema = "00850"
 
 // TestCheckSchemaVersion_Compatible verifies a freshly initialized database
 // (seeded by testutils with the latest schema) is accepted (REQ-016).

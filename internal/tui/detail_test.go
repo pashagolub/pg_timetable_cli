@@ -149,3 +149,59 @@ func TestClampHelper(t *testing.T) {
 		t.Fatalf("clamp overflow = %d, want 3", got)
 	}
 }
+
+// TestDetailSecretsLine verifies the chain header names every referenced
+// secret once and marks the ones that will not resolve at execution time.
+func TestDetailSecretsLine(t *testing.T) {
+	v := loadedDetailView()
+	uv, _ := v.Update(secretRefsLoadedMsg{refs: []client.SecretRef{
+		{SecretName: "db_pass", TaskID: 1, Location: "connection", Resolvable: true},
+		{SecretName: "smtp", TaskID: 2, Location: "parameter", Note: "no timetable.secret row"},
+		{SecretName: "smtp", TaskID: 2, Location: "command", Note: "no timetable.secret row"},
+	}})
+	v = uv.(*detailView)
+
+	out := v.Body(140, 28)
+	if !strings.Contains(out, "secrets ") {
+		t.Fatal("detail body missing the secrets line")
+	}
+	if !strings.Contains(out, "db_pass") || !strings.Contains(out, "!smtp") {
+		t.Fatalf("secrets line must list db_pass and flag !smtp, got:\n%s", out)
+	}
+	if strings.Contains(out, "!db_pass") {
+		t.Fatal("a resolvable secret must not be flagged")
+	}
+	if got := strings.Count(v.secretsLine(), "smtp"); got != 1 {
+		t.Fatalf("smtp listed %d times, want once however many tasks reference it", got)
+	}
+}
+
+// TestDetailSecretsLine_OmittedWithoutRefs verifies chains without references
+// keep the two-line header, so the panes below are laid out at full height.
+func TestDetailSecretsLine_OmittedWithoutRefs(t *testing.T) {
+	v := loadedDetailView()
+	if got := v.secretsLine(); got != "" {
+		t.Fatalf("secrets line = %q, want empty", got)
+	}
+	if got := headerLines(v.secretRefs); got != 2 {
+		t.Fatalf("headerLines = %d, want 2", got)
+	}
+	if got := headerLines([]client.SecretRef{{SecretName: "a"}}); got != 3 {
+		t.Fatalf("headerLines with refs = %d, want 3", got)
+	}
+}
+
+// TestDetailSecretRefsErrorIsNotFatal verifies a failed reference scan leaves
+// the chain view intact: fetchSecretRefs reports no references rather than an
+// error, so a database that cannot answer still renders the chain.
+func TestDetailSecretRefsErrorIsNotFatal(t *testing.T) {
+	v := loadedDetailView()
+	uv, cmd := v.Update(secretRefsLoadedMsg{})
+	v = uv.(*detailView)
+	if cmd != nil {
+		t.Fatal("an empty secret-ref result must not trigger a follow-up command")
+	}
+	if out := v.Body(140, 28); !strings.Contains(out, "nightly") {
+		t.Fatal("chain header lost after an empty secret-ref result")
+	}
+}

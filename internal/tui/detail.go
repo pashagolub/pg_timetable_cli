@@ -33,6 +33,13 @@ type runsLoadedMsg struct {
 	err  error
 }
 
+// secretRefsLoadedMsg carries the ListSecretRefs result. A failure here is not
+// propagated as an errMsg: secret references are an annotation on the chain,
+// and a database that cannot answer the question must not blank out the view.
+type secretRefsLoadedMsg struct {
+	refs []client.SecretRef
+}
+
 const detailRunsLimit = 20
 
 // detailView shows a single chain: its header, ordered tasks (top pane) and
@@ -44,9 +51,10 @@ type detailView struct {
 	ref  string // chain id (string) used for ShowChain/ListRuns
 	name string // best-known chain name (for the title/breadcrumb)
 
-	chain *client.ChainListItem
-	tasks []client.ChainTask
-	runs  []client.RunSummary
+	chain      *client.ChainListItem
+	tasks      []client.ChainTask
+	runs       []client.RunSummary
+	secretRefs []client.SecretRef
 
 	focus       detailPane
 	taskCursor  int
@@ -79,7 +87,9 @@ func (v *detailView) Title() string {
 	return "chain " + v.ref
 }
 
-func (v *detailView) Init() tea.Cmd { return tea.Batch(v.fetchChain(), v.fetchRuns()) }
+func (v *detailView) Init() tea.Cmd {
+	return tea.Batch(v.fetchChain(), v.fetchRuns(), v.fetchSecretRefs())
+}
 
 func (v *detailView) SetSize(w, h int) { v.width, v.hght = w, h }
 
@@ -99,10 +109,24 @@ func (v *detailView) fetchRuns() tea.Cmd {
 	}
 }
 
+// fetchSecretRefs loads the ${secret:name} references this chain's tasks carry.
+// An error yields no references rather than an error banner: the chain itself
+// is still worth showing.
+func (v *detailView) fetchSecretRefs() tea.Cmd {
+	c, ref := v.client, v.ref
+	return func() tea.Msg {
+		refs, err := c.ListSecretRefs(context.Background(), ref)
+		if err != nil {
+			return secretRefsLoadedMsg{}
+		}
+		return secretRefsLoadedMsg{refs: refs}
+	}
+}
+
 func (v *detailView) Update(msg tea.Msg) (view, tea.Cmd) {
 	switch msg := msg.(type) {
 	case refreshMsg:
-		return v, tea.Batch(v.fetchChain(), v.fetchRuns())
+		return v, tea.Batch(v.fetchChain(), v.fetchRuns(), v.fetchSecretRefs())
 
 	case detailLoadedMsg:
 		if msg.err != nil {
@@ -122,6 +146,10 @@ func (v *detailView) Update(msg tea.Msg) (view, tea.Cmd) {
 		}
 		v.runs = msg.runs
 		v.clampCursors()
+		return v, nil
+
+	case secretRefsLoadedMsg:
+		v.secretRefs = msg.refs
 		return v, nil
 
 	case tea.KeyMsg:
@@ -187,7 +215,7 @@ func (v *detailView) Body(width, height int) string {
 	b.WriteByte('\n')
 
 	// Split the remaining height between the two bordered panes.
-	remaining := height - 3 // header block (2 lines) + spacer
+	remaining := height - 1 - headerLines(v.secretRefs) // header block + spacer
 	if remaining < 6 {
 		remaining = 6
 	}
@@ -223,7 +251,45 @@ func (v *detailView) headerBlock(_ int) string {
 		"schedule %s · %s · max %d · timeout %dms · on_error %s · client %s",
 		orDash(ch.RunAt), live, ch.MaxInstances, ch.Timeout, orDash(ch.OnError), orDash(ch.ClientName),
 	))
-	return line1 + "\n" + line2
+	block := line1 + "\n" + line2
+	if line3 := v.secretsLine(); line3 != "" {
+		block += "\n" + line3
+	}
+	return block
+}
+
+// headerLines is the height headerBlock occupies: the chain identity and
+// attribute lines, plus the secrets line when the chain has references.
+func headerLines(refs []client.SecretRef) int {
+	if len(refs) == 0 {
+		return 2
+	}
+	return 3
+}
+
+// secretsLine renders the chain's ${secret:name} references, marking with "!"
+// any that have no matching timetable.secret row and so will fail to resolve
+// when the scheduler runs the task. It is empty for chains without references.
+func (v *detailView) secretsLine() string {
+	if len(v.secretRefs) == 0 {
+		return ""
+	}
+	unresolved := map[string]bool{}
+	for _, r := range v.secretRefs {
+		if !r.Resolvable {
+			unresolved[r.SecretName] = true
+		}
+	}
+	names := client.SecretRefNames(v.secretRefs)
+	parts := make([]string, 0, len(names))
+	for _, n := range names {
+		if unresolved[n] {
+			parts = append(parts, v.styles.level("ERROR").Render("!"+n))
+			continue
+		}
+		parts = append(parts, n)
+	}
+	return v.styles.dim.Render("secrets ") + strings.Join(parts, v.styles.dim.Render(", "))
 }
 
 func (v *detailView) tasksTable(width, height int) string {

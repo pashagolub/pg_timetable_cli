@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
 	"github.com/spf13/cobra"
@@ -438,6 +439,9 @@ func newChainListCmd() *cobra.Command {
 type chainDetail struct {
 	Chain client.ChainListItem `json:"chain"`
 	Tasks []client.ChainTask   `json:"tasks"`
+	// SecretRefs lists the ${secret:name} references this chain's tasks carry.
+	// Empty for chains that use no secrets.
+	SecretRefs []client.SecretRef `json:"secret_refs,omitempty"`
 }
 
 // newChainShowCmd implements `chain show` (REQ-003).
@@ -453,7 +457,14 @@ func newChainShowCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				detail := chainDetail{Chain: *chain, Tasks: tasks}
+				// Secret references are part of a chain's definition, so they
+				// belong in `chain show`. A failure to scan them must not hide
+				// the chain itself: report it on stderr and carry on.
+				refs, refErr := c.ListSecretRefs(ctx, ref)
+				if refErr != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: cannot scan secret references: %v\n", refErr)
+				}
+				detail := chainDetail{Chain: *chain, Tasks: tasks, SecretRefs: refs}
 				headers := []string{"ORDER", "TASK_ID", "NAME", "KIND", "COMMAND", "IGNORE_ERR", "AUTONOMOUS", "CONN", "TIMEOUT"}
 				rows := make([][]string, 0, len(tasks))
 				for i, t := range tasks {
@@ -469,9 +480,35 @@ func newChainShowCmd() *cobra.Command {
 						strconv.Itoa(t.Timeout),
 					})
 				}
-				return render(cmd.OutOrStdout(), detail, headers, rows)
+				if err := render(cmd.OutOrStdout(), detail, headers, rows); err != nil {
+					return err
+				}
+				printSecretRefs(cmd, refs)
+				return nil
 			})
 		},
+	}
+}
+
+// printSecretRefs appends a Secrets footer to the `chain show` table listing
+// the ${secret:name} references the chain carries, flagging any that have no
+// matching timetable.secret row. It writes nothing when there are no
+// references, and nothing in --output json, where the refs are already in the
+// document.
+func printSecretRefs(cmd *cobra.Command, refs []client.SecretRef) {
+	if len(refs) == 0 {
+		return
+	}
+	if format, err := parseOutputFormat(opts.output); err == nil && format == outputJSON {
+		return
+	}
+	out := cmd.OutOrStdout()
+	fmt.Fprintf(out, "\nSecrets: %s\n", strings.Join(client.SecretRefNames(refs), ", "))
+	for _, r := range refs {
+		if r.Resolvable {
+			continue
+		}
+		fmt.Fprintf(out, "  ! %s (task %d, %s): %s\n", r.SecretName, r.TaskID, r.Location, r.Note)
 	}
 }
 

@@ -5,12 +5,16 @@
 // schema), this standalone repository deliberately has no scheduler code
 // (REQ-016: pgtt never creates the schema). Instead the official
 // pg_timetable Docker image is run once with --init, which initializes the
-// schema to the latest version and exits. This guarantees the test schema
-// always matches a real scheduler deployment.
+// schema and exits. This guarantees the test schema always matches a real
+// scheduler deployment.
+//
+// The released image is one migration behind pgtt's pinned dbSchema, so
+// migrations/00820.sql is applied on top; see applyPendingMigrations.
 package testutils
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"testing"
 	"time"
@@ -22,9 +26,30 @@ import (
 )
 
 // SchedulerImage is the pg_timetable image used to initialize the schema.
-// Override via ldflags or keep in lockstep with the dbSchema constant in
-// cmd/root.go when pinning to a released schema version.
 var SchedulerImage = "cybertecpostgresql/pg_timetable:latest"
+
+// pendingMigration is a pg_timetable migration the released scheduler image
+// may not ship yet. The SQL files are copied verbatim from pg_timetable's
+// migrations directory, so the test database matches what a master scheduler
+// produces. Delete an entry, and its file, once a release ships it.
+type pendingMigration struct {
+	version string // leading token of timetable.migration.version, e.g. "00850"
+	name    string // full migration name recorded in timetable.migration
+	sql     string
+}
+
+//go:embed 00820.sql
+var migration00820 string
+
+//go:embed 00850.sql
+var migration00850 string
+
+// pendingMigrations lists, in order, the migrations up to the schema version
+// pgtt pins to (dbSchema in cmd/root.go).
+var pendingMigrations = []pendingMigration{
+	{"00820", "00820 Add timetable.secret store", migration00820},
+	{"00850", "00850 Fix error hint in timetable.cron_split_to_arrays", migration00850},
+}
 
 // PostgresTestContainer wraps a postgres container whose database has the
 // timetable.* schema installed.
@@ -79,6 +104,12 @@ func SetupPostgresContainer(t *testing.T) (*PostgresTestContainer, func()) {
 		t.Fatalf("Failed to open pgx pool: %v", err)
 	}
 
+	if err := applyPendingMigrations(ctx, pool); err != nil {
+		pool.Close()
+		cleanup()
+		t.Fatalf("Failed to apply pending migrations: %v", err)
+	}
+
 	tc := &PostgresTestContainer{
 		Container: postgresContainer,
 		Pool:      pool,
@@ -125,4 +156,45 @@ func initSchema(ctx context.Context, pg *postgres.PostgresContainer) error {
 		return fmt.Errorf("%s --init exited with code %d", SchedulerImage, state.ExitCode)
 	}
 	return nil
+}
+
+// applyPendingMigrations brings the database up to the schema version pgtt is
+// pinned to, for migrations the released scheduler image does not yet ship.
+// Each migration is skipped when the image already applied it.
+func applyPendingMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	for _, m := range pendingMigrations {
+		var have bool
+		if err := pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM timetable.migration WHERE version LIKE $1)`,
+			m.version+"%",
+		).Scan(&have); err != nil {
+			return fmt.Errorf("reading timetable.migration: %w", err)
+		}
+		if have {
+			continue
+		}
+		if _, err := pool.Exec(ctx, m.sql); err != nil {
+			return fmt.Errorf("applying migration %s: %w", m.version, err)
+		}
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO timetable.migration (id, version)
+			 VALUES ((SELECT MAX(id) + 1 FROM timetable.migration), $1)`,
+			m.name,
+		); err != nil {
+			return fmt.Errorf("recording migration %s: %w", m.version, err)
+		}
+	}
+	return nil
+}
+
+// AddSecret inserts one timetable.secret row. The value is opaque bytes: pgtt
+// never decrypts, so the tests need no pgcrypto and no real ciphertext.
+func (tc *PostgresTestContainer) AddSecret(t *testing.T, clientName, secretName string, valueEnc []byte) {
+	t.Helper()
+	if _, err := tc.Pool.Exec(context.Background(),
+		`INSERT INTO timetable.secret (client_name, secret_name, value_enc) VALUES ($1, $2, $3)`,
+		clientName, secretName, valueEnc,
+	); err != nil {
+		t.Fatalf("Failed to insert secret %s/%s: %v", clientName, secretName, err)
+	}
 }

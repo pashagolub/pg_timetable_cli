@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
+	"github.com/cybertec-postgresql/pg_timetable_cli/internal/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,4 +45,56 @@ func TestChainDelete_NonTTYFailSafe(t *testing.T) {
 	err = root.Execute()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "aborted")
+}
+
+// TestPrintSecretRefs_FlagsUnresolvable verifies the `chain show` footer names
+// every referenced secret once and calls out only the ones that will fail to
+// resolve at execution time.
+func TestPrintSecretRefs_FlagsUnresolvable(t *testing.T) {
+	orig := opts.output
+	t.Cleanup(func() { opts.output = orig })
+
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	// newRootCmd binds --output to opts.output and resets it to the flag
+	// default, so the format must be chosen after the tree is built.
+	opts.output = string(outputTable)
+
+	printSecretRefs(cmd, []client.SecretRef{
+		{SecretName: "db_pass", TaskID: 7, Location: "connection", Resolvable: true},
+		{SecretName: "smtp", TaskID: 8, Location: "parameter", Note: "no timetable.secret row for client \"worker-1\""},
+	})
+
+	got := out.String()
+	assert.Contains(t, got, "Secrets: db_pass, smtp")
+	assert.Contains(t, got, "! smtp (task 8, parameter)")
+	assert.Contains(t, got, "worker-1")
+	assert.NotContains(t, got, "! db_pass", "a resolvable reference needs no warning")
+}
+
+// TestPrintSecretRefs_QuietWhenNothingToSay verifies the footer is omitted for
+// chains without references, and in JSON output where the refs are already
+// part of the document.
+func TestPrintSecretRefs_QuietWhenNothingToSay(t *testing.T) {
+	orig := opts.output
+	t.Cleanup(func() { opts.output = orig })
+
+	refs := []client.SecretRef{{SecretName: "smtp", TaskID: 1, Location: "command"}}
+
+	// newRootCmd resets opts.output to the --output default, so each format is
+	// selected after its command tree is built.
+	var noRefs bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetOut(&noRefs)
+	opts.output = string(outputTable)
+	printSecretRefs(cmd, nil)
+	assert.Empty(t, noRefs.String())
+
+	var asJSON bytes.Buffer
+	cmd = newRootCmd()
+	cmd.SetOut(&asJSON)
+	opts.output = string(outputJSON)
+	printSecretRefs(cmd, refs)
+	assert.Empty(t, asJSON.String())
 }
